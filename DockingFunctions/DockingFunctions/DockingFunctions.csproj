@@ -7,8 +7,8 @@
     <ProjectGuid>{4B05A5A0-3DB0-4BB5-A1E8-7A7A2E818A36}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>AttachmentAndDockingTools</RootNamespace>
-    <AssemblyName>AttachmentAndDockingTools</AssemblyName>
+    <RootNamespace>DockingFunctions</RootNamespace>
+    <AssemblyName>DockingFunctions</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>

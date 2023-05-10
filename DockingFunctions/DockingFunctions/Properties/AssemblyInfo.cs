@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // Allgemeine Informationen über eine Assembly werden über die folgenden
 // Attribute gesteuert. Ändern Sie diese Attributwerte, um die Informationen zu ändern,
 // die einer Assembly zugeordnet sind.
-[assembly: AssemblyTitle("AttachmentAndDockingTools")]
+[assembly: AssemblyTitle("DockingFunctions")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("MagicSmokeIndustries")]
-[assembly: AssemblyProduct("AttachmentAndDockingTools")]
+[assembly: AssemblyProduct("DockingFunctions")]
 [assembly: AssemblyCopyright("Copyright ©  2023")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
@@ -36,4 +36,4 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyFileVersion("1.0.0.0")]
 
 
-[assembly: KSPAssembly("AttachmentAndDockingTools", 1, 0)]
+[assembly: KSPAssembly("DockingFunctions", 1, 0)]
