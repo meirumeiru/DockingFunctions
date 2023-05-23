@@ -2,16 +2,16 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace AttachmentAndDockingTools
+namespace DockingFunctions
 {
 	[KSPAddon(KSPAddon.Startup.Flight, false)]
-    public class ShipCoordinator : MonoBehaviour
+    public class VesselPositionManager : MonoBehaviour
     {
 		public virtual String AddonName { get; set; }
 
-		protected static ShipCoordinator Instance = null;
+		protected static VesselPositionManager Instance = null;
 
-		protected struct RegisteredShip
+		protected struct RegisteredVessel
 		{
 			public Vessel vessel;
 			public Part followedPart;
@@ -20,22 +20,32 @@ namespace AttachmentAndDockingTools
 			public Quaternion relativeRotation;
 		};
 
-		private void Awake()
+		public void Awake()
 		{
 			Instance = this;
-			registeredShips = new List<RegisteredShip>();
+			registeredVessels = new List<RegisteredVessel>();
 		}
 
-		protected List<RegisteredShip> registeredShips;
+		protected List<RegisteredVessel> registeredVessels;
 
-		public static void Register(Vessel vessel, Part followedPart, Vector3 relativePosition, Quaternion relativeRotation)
+		/*
+		 * Description:
+		 *     Registers a previously registered connection again (e.g. after a load).
+		*/
+		public static void OnLoad(Vessel vessel, Part followedPart, Vector3 relativePosition, Quaternion relativeRotation)
 		{
-			Instance.registeredShips.Add(
-				new RegisteredShip { vessel = vessel, followedPart = followedPart, relativePosition = relativePosition, relativeRotation = relativeRotation });
-
-// FEHLER, hier die Reihenfolge prüfen und alles umstellen, wen die Hierarchie nicht stimmen würde
+			Instance.registeredVessels.Add(
+				new RegisteredVessel { vessel = vessel, followedPart = followedPart, relativePosition = relativePosition, relativeRotation = relativeRotation });
 		}
 
+		/*
+		 * Description:
+		 *     Registers a connection between two parts and returns relativePosition, relativeRotation
+		 *     for a later use in ReRegister (e.g. after a load).
+		 *     
+		 * Remarks:
+		 *     It is recommended that followedPart.vessel is dominant over part.vessel.
+		*/
 		public static void Register(Part part, Part followedPart, bool usePristineCoords, out Vector3 relativePosition, out Quaternion relativeRotation)
 		{
 			if(usePristineCoords)
@@ -52,23 +62,27 @@ namespace AttachmentAndDockingTools
 				relativeRotation = Quaternion.Inverse(followedPart.transform.rotation) * part.vessel.transform.rotation;
 			}
 
-			Register(part.vessel, followedPart, relativePosition, relativeRotation);
+			OnLoad(part.vessel, followedPart, relativePosition, relativeRotation);
 		}
 
+		/*
+		 * Description:
+		 *     Unregisters a connection between two parts.
+		*/
 		public static void Unregister(Vessel vessel)
 		{
-			for(int i = 0; i < Instance.registeredShips.Count; i++)
+			for(int i = 0; i < Instance.registeredVessels.Count; i++)
 			{
-				if(Instance.registeredShips[i].vessel == vessel)
-					Instance.registeredShips.RemoveAt(i--);
+				if(Instance.registeredVessels[i].vessel == vessel)
+					Instance.registeredVessels.RemoveAt(i--);
 			}
 		}
 
 		private void FixedUpdate()
 		{
-			for(int i = 0; i < registeredShips.Count; i++)
+			for(int i = 0; i < registeredVessels.Count; i++)
 			{
-				RegisteredShip r = registeredShips[i];
+				RegisteredVessel r = registeredVessels[i];
 
 				if(r.vessel.packed)
 				{
