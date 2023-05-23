@@ -28,6 +28,28 @@ namespace DockingFunctions
 
 		protected List<RegisteredVessel> registeredVessels;
 
+		public static bool IsFollowing(Vessel vessel)
+		{
+			for(int i = 0; i < Instance.registeredVessels.Count; i++)
+			{
+				if(Instance.registeredVessels[i].vessel == vessel)
+					return true;
+			}
+
+			return false;
+		}
+
+		public static bool IsFollowed(Vessel vessel)
+		{
+			for(int i = 0; i < Instance.registeredVessels.Count; i++)
+			{
+				if(Instance.registeredVessels[i].followedPart.vessel == vessel)
+					return true;
+			}
+
+			return false;
+		}
+
 		/*
 		 * Description:
 		 *     Registers a previously registered connection again (e.g. after a load).
@@ -84,10 +106,18 @@ namespace DockingFunctions
 			{
 				RegisteredVessel r = registeredVessels[i];
 
-				if(r.vessel.packed)
+				try
 				{
-					r.vessel.SetRotation(r.followedPart.transform.rotation * r.relativeRotation, true);
-					r.vessel.SetPosition(r.followedPart.transform.position + r.followedPart.transform.rotation * r.relativePosition, false);
+					if(r.vessel.packed)
+					{
+						r.vessel.SetRotation(r.followedPart.transform.rotation * r.relativeRotation, true);
+						r.vessel.SetPosition(r.followedPart.transform.position + r.followedPart.transform.rotation * r.relativePosition, false);
+					}
+				}
+				catch(Exception)
+				{
+					if((r.vessel == null) || (r.followedPart == null))
+						registeredVessels.RemoveAt(i--);
 				}
 			}
 		}
