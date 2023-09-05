@@ -511,6 +511,10 @@ part.attachJoint.joints[0].SetTargetRotationLocal((Quaternion.Inverse(part.trans
 
 			GameEvents.onVesselWasModified.Fire(targetVessel);
 			GameEvents.onDockingComplete.Fire(new GameEvents.FromToAction<Part, Part>(part, targetPart));
+
+//			base.part.fuelLookupTargets.Add(otherNode.part);
+//			otherNode.part.fuelLookupTargets.Add(base.part);
+//			GameEvents.onPartFuelLookupStateChange.Fire(new GameEvents.HostedFromToAction<bool, Part>(host: true, otherNode.part, base.part));
 		}
 
 		private static void ExecuteDockSameVessel(
@@ -616,37 +620,52 @@ float attachNodeSize = 1f; // FEHLER, wirklich? mal sehen... oder könnte das 0 
 	//		GameEvents.onVesselWasModified.Fire(targetVessel);
 	//		GameEvents.onDockingComplete.Fire(new GameEvents.FromToAction<Part, Part>(part, targetPart));
 
-
 //cfj sich merken? -> JAHA... verdammt
 sameVesselJoint = cfj;
 		}
 
 		public static void DockVessels(IDockable part, IDockable targetPart)
 		{
-			DockedVesselInfo vesselInfo, targetVesselInfo;
-			Vector3 part_orgPos; Quaternion part_orgRot;
-			ConfigurableJoint _sameVesselJoint = null;
-
 			if(part.GetPart().vessel != targetPart.GetPart().vessel)
+			{
+				DockingEvents.onVesselDocking.Fire(part, targetPart);
+
+				DockedVesselInfo vesselInfo, targetVesselInfo;
+				Vector3 part_orgPos; Quaternion part_orgRot;
+
 				ExecuteDockVessels(part.GetPart(), part.GetNodeTransform(), part.GetDockingOrientation(),
 					targetPart.GetPart(), targetPart.GetNodeTransform(), targetPart.GetDockingOrientation(),
 					Math.Min(part.GetSnapCount(), targetPart.GetSnapCount()),
 					out vesselInfo, out targetVesselInfo, out part_orgPos, out part_orgRot);
+
+				DockInfo dockInfo = new DockInfo { part = part, targetPart = targetPart, vesselInfo = vesselInfo, targetVesselInfo = targetVesselInfo,
+					isSameVesselJoint = false, sameVesselJoint = null };
+
+				part.SetDockInfo(dockInfo);
+				targetPart.SetDockInfo(dockInfo);
+
+				DockingEvents.onVesselDocked.Fire(part, targetPart);
+			}
 			else
 			{
+				DockingEvents.onSameVesselDocking.Fire(part, targetPart);
+
+				Vector3 part_orgPos; Quaternion part_orgRot;
+				ConfigurableJoint _sameVesselJoint = null;
+
 				ExecuteDockSameVessel(part.GetPart(), part.GetNodeTransform(), part.GetDockingOrientation(),
 					targetPart.GetPart(), targetPart.GetNodeTransform(), targetPart.GetDockingOrientation(),
 					Math.Min(part.GetSnapCount(), targetPart.GetSnapCount()),
 					out part_orgPos, out part_orgRot, out _sameVesselJoint);
 
-				vesselInfo = null; targetVesselInfo = null;
+				DockInfo dockInfo = new DockInfo { part = part, targetPart = targetPart, vesselInfo = null, targetVesselInfo = null,
+					isSameVesselJoint = true, sameVesselJoint = _sameVesselJoint };
+
+				part.SetDockInfo(dockInfo);
+				targetPart.SetDockInfo(dockInfo);
+
+				DockingEvents.onSameVesselDocked.Fire(part, targetPart);
 			}
-
-			DockInfo dockInfo = new DockInfo { part = part, targetPart = targetPart, vesselInfo = vesselInfo, targetVesselInfo = targetVesselInfo,
-				isSameVesselJoint = (_sameVesselJoint != null), sameVesselJoint = _sameVesselJoint };
-
-			part.SetDockInfo(dockInfo);
-			targetPart.SetDockInfo(dockInfo);
 		}
 
 		private static void RedockVessel(
@@ -750,8 +769,15 @@ sameVesselJoint = cfj;
 
 			if((r != null) && r.isSameVesselJoint)
 			{
+				DockingEvents.onSameVesselUndocking.Fire(part, targetPart);
+
 				if(r.sameVesselJoint)
 					UnityEngine.Object.Destroy(r.sameVesselJoint);
+
+				part.SetDockInfo(null);
+				targetPart.SetDockInfo(null);
+
+				DockingEvents.onSameVesselUndocked.Fire(part, targetPart);
 			}
 			else
 			{
@@ -770,6 +796,11 @@ sameVesselJoint = cfj;
 
 				if(di != null)
 				{
+					DockingEvents.onDockingSwitching.Fire(di.part, part);
+					DockingEvents.onDockingSwitching.Fire(di.targetPart, targetPart);
+
+					DockingEvents.onSameVesselUndocking.Fire(part, targetPart);
+
 					if(di.sameVesselJoint)
 						UnityEngine.Object.Destroy(di.sameVesselJoint);
 
@@ -777,18 +808,34 @@ sameVesselJoint = cfj;
 					di.sameVesselJoint = null;
 
 					RedockVessel(di.part, di.targetPart, part, targetPart);
+
+					part.SetDockInfo(null);
+					targetPart.SetDockInfo(null);
+
+					DockingEvents.onDockingSwitched.Fire(di.part, part);
+					DockingEvents.onDockingSwitched.Fire(di.targetPart, targetPart);
+
+					DockingEvents.onSameVesselUndocked.Fire(part, targetPart);
 				}
 				else
 				{
+					DockingEvents.onVesselUndocking.Fire(part, targetPart);
+
 					if((r != null) && (r.vesselInfo != null))
 						part.GetPart().Undock(r.vesselInfo);
 					else
 						part.GetPart().decouple();
+
+					part.SetDockInfo(null);
+					targetPart.SetDockInfo(null);
+
+					DockingEvents.onVesselUndocked.Fire(part, targetPart);
+
+//			base.part.fuelLookupTargets.Remove(otherNode.part);
+//			otherNode.part.fuelLookupTargets.Remove(base.part);
+//			GameEvents.onPartFuelLookupStateChange.Fire(new GameEvents.HostedFromToAction<bool, Part>(host: true, base.part, otherNode.part));
 				}
 			}
-
-			part.SetDockInfo(null);
-			targetPart.SetDockInfo(null);
 
 // FEHELR, beim undock noch die korrekte Kamera setzen und so weiter und so fort... und, was heisst hier schon "target"? ... na ja...
 		}

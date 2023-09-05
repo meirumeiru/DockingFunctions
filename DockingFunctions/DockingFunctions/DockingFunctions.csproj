@@ -80,6 +80,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="DockingEvents.cs" />
     <Compile Include="IDockable.cs" />
     <Compile Include="VesselPositionManager.cs" />
     <Compile Include="DockingHelper.cs" />
