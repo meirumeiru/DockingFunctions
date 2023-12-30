@@ -62,17 +62,23 @@ namespace DockingFunctions
 		//////////////////////////////
 		// Camera Switch
 
+		private static Part targetPart;
 		private static Vector3 position1;
 		private static Vector3 position2;
 
 		public static void SaveCameraPosition(Part part)
 		{
+			targetPart = (FlightCamera.fetch.targetMode == FlightCamera.TargetMode.Part) ? FlightCamera.fetch.partTarget : null;
+
 			position1 = part.transform.InverseTransformPoint(FlightCamera.fetch.GetPivot().position);
 			position2 = part.transform.InverseTransformPoint(FlightCamera.fetch.GetCameraTransform().position);
 		}
 
 		public static void RestoreCameraPosition(Part part)
 		{
+			if(targetPart)
+				FlightCamera.fetch.SetTargetPart(targetPart);
+
 			FlightCamera.fetch.GetPivot().position = part.transform.TransformPoint(position1);
 			FlightCamera.fetch.SetCamCoordsFromPosition(part.transform.TransformPoint(position2));
 			FlightCamera.fetch.GetCameraTransform().position = part.transform.TransformPoint(position2);
