@@ -82,6 +82,7 @@
   <ItemGroup>
     <Compile Include="DockingEvents.cs" />
     <Compile Include="IDockable.cs" />
+    <Compile Include="Utility\Logger.cs" />
     <Compile Include="VesselPositionManager.cs" />
     <Compile Include="DockingHelper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

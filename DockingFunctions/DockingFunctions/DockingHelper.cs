@@ -182,24 +182,63 @@ namespace DockingFunctions
 			}
 		}
 
+		// helper functions for re-docking (create the same result as if there was a real docking)
+
+		private static void SetRotation(List<Part> parts, Quaternion rotation)
+		{
+			for(int i = 0; i < parts.Count; i++)
+			{
+				Part part = parts[i];
+				part.partTransform.rotation = rotation * part.orgRot;
+			}
+		}
+
+		private static void SetPosition(List<Part> parts, Quaternion rotation, Vector3 position)
+		{
+			for(int i = 0; i < parts.Count; i++)
+			{
+				Part part = parts[i];
+				part.partTransform.position = position + rotation * part.orgPos;
+			}
+		}
+
 		//////////////////////////////
 		// parts
 
-		private static void FindChildParts(Part part, List<Part> childParts)
+		private static void FindChildParts(Part part, List<Part> parts)
 		{
-			childParts.AddRange(part.children);
+			parts.AddRange(part.children);
 
 			foreach(Part child in part.children)
-				FindChildParts(child, childParts);
+				FindChildParts(child, parts);
 		}
 
-		private static List<Part> FindChildParts(Part part)
+		private static List<Part> FindParts(Part part)
 		{
-			List<Part> childParts = new List<Part>();
+			List<Part> parts = new List<Part>();
 
-			FindChildParts(part, childParts);
+			parts.Add(part);
+			FindChildParts(part, parts);
 
-			return childParts;
+			return parts;
+		}
+
+		// helper functions for re-docking (create the same result as if there was a real docking)
+
+		public static void Couple(Part part, Part tgtPart)
+		{
+			part.SetHierarchyRoot(part);
+			part.setParent(tgtPart);
+			part.CreateAttachJoint(tgtPart.attachMode);
+			part.ResetJoints();
+		}
+
+		public static void SetVessel(Part part)
+		{
+			part.vessel.parts.Add(part);
+
+			for(int i = 0; i < part.children.Count; i++)
+				SetVessel(part.children[i]);
 		}
 
 		//////////////////////////////
@@ -229,8 +268,8 @@ namespace DockingFunctions
 		// Docking
 
 		private static void CalculateDockingValues(
-			Part targetPart, Transform targetNodeTransform, Vector3 targetDockingOrientation,
 			Part part, Transform nodeTransform, Vector3 dockingOrientation,
+			Part targetPart, Transform targetNodeTransform, Vector3 targetDockingOrientation,
 			int snapCount, out Vector3 part_orgPos, out Quaternion part_orgRot)
 		{
 			// relative rotation targetPart -> targetNodeTransform
@@ -248,10 +287,12 @@ namespace DockingFunctions
 				Quaternion.AngleAxis(180f, targetDockingOrientation)
 				* Quaternion.AngleAxis(Vector3.SignedAngle(targetDockingOrientation, dockingOrientation, Vector3.forward), Vector3.forward);
 
-// FEHLER, supertemp... mal sehen -> ich nutze die aktuell Position um zu erkennen, ob ich noch für ein snap eine Rotation machen muss -> heisst (ganz wichtig!!!) ich nutze AKTUELLE Daten um ABZUSCHÄTZEN, welche Rotation ich THEORETISCH noch machen muss -> das unterscheidet sich grundlegend von ALLEM ANDEREN HIER DRIN!!!!! GAAAAAAAANZ WICHTIG ZU VERSTEHEN!!!!! KAPPIERT???
+			// find docking angle (from current values, not org-values) -> used for decision which docking angle ("snap angle") to choose
 			float dockingAngle =
 			Vector3.SignedAngle(targetNodeTransform.rotation * targetDockingOrientation, nodeTransform.rotation * dockingOrientation,
 				nodeTransform.forward);
+
+			// -> at correct docking with 0 degrees, the DockingOrientation of both ports point into the same direction
 
 			float snapAngle = 360f / snapCount;
 
@@ -280,39 +321,28 @@ namespace DockingFunctions
 			part_orgPos = nodeTransform_orgPos + nodeTransform_orgRot * part_relPos;
 			part_orgRot = nodeTransform_orgRot * part_relRot;
 		}
-/* unused, maybe useful to restore same vessel dockings after load (which is currently still missing)
- 
-		private static void CorrectAttachJoint(Part part)
+
+		public static void CalculateDockingPositionAndRotation(IDockable part, IDockable targetPart, out Vector3 partPosition, out Quaternion partRotation)
 		{
-			// FEHLER, nur mal so eine Idee -> zudem: geht nur, wenn der Joint nur 1 gross ist... sonst nicht -> aber bei DockingNodes gehen wir davon aus... einfach mal... ok?
+			Vector3 partOrgPos; Quaternion partOrgRot;
 
-// der Joint wurde gebaut mit den gegebenen Positionen... Frage: stimmen die? kommt's zusammen mit KJR zu Problemen? weil ein Joint überbelastet?
+			CalculateDockingValues(
+				part.GetPart(), part.GetNodeTransform(), part.GetDockingOrientation(),
+				targetPart.GetPart(), targetPart.GetNodeTransform(), targetPart.GetDockingOrientation(),
+				Math.Min(part.GetSnapCount(), targetPart.GetSnapCount()),
+				out partOrgPos, out partOrgRot);
 
-// FEHLER, eigentlich ist das Problem, dass ich die Teils nach attach-Node verbinden müsste
+			Vessel targetVessel = targetPart.GetPart().vessel;
 
-			Part linkPart = part.parent;
-
-part.attachJoint.joints[0].autoConfigureConnectedAnchor = false;
-
-Vector3 anchor = part.orgPos + part.orgRot * part.attachJoint.joints[0].anchor;
-
-Vector3 connectedAnchor = Quaternion.Inverse(linkPart.orgRot) * (anchor - linkPart.orgPos);
-
-	//		newJoint.connectedAnchor = Quaternion.Inverse(linkPart.orgRot) * (part.orgPos - linkPart.orgPos);
-	//		newJoint.SetTargetRotationLocal((Quaternion.Inverse(part.transform.rotation) * linkPart.transform.rotation * (Quaternion.Inverse(linkPart.orgRot) * part.orgRot)).normalized, Quaternion.identity);
-
-			part.attachJoint.joints[0].connectedAnchor = connectedAnchor;
-
-part.attachJoint.joints[0].SetTargetRotationLocal((Quaternion.Inverse(part.transform.rotation) * linkPart.transform.rotation *
-(Quaternion.Inverse(linkPart.orgRot) * part.orgRot)).normalized, Quaternion.identity);
+			partPosition = targetVessel.transform.position + targetVessel.transform.rotation * partOrgPos;
+			partRotation = targetVessel.transform.rotation * partOrgRot;
 		}
-*/
+
 		// docks a vessel to the targetVessel
 		private static void ExecuteDockVessels(
 			Part part, Transform nodeTransform, Vector3 dockingOrientation,
 			Part targetPart, Transform targetNodeTransform, Vector3 targetDockingOrientation,
-			int snapCount, out DockedVesselInfo vesselInfo, out DockedVesselInfo targetVesselInfo,
-			out Vector3 part_orgPos, out Quaternion part_orgRot)
+			int snapCount, out DockedVesselInfo vesselInfo, out DockedVesselInfo targetVesselInfo)
 		{
 			Vessel vessel = part.vessel;
 			Vessel targetVessel = targetPart.vessel;
@@ -344,12 +374,16 @@ part.attachJoint.joints[0].SetTargetRotationLocal((Quaternion.Inverse(part.trans
 			posInfo targetPosInfo = BuildPosInfo(targetVessel);
 
 			// calculate docking orientation
-			CalculateDockingValues(targetPart, targetNodeTransform, targetDockingOrientation, part, nodeTransform, dockingOrientation, snapCount, out part_orgPos, out part_orgRot);
+			Vector3 partOrgPos; Quaternion partOrgRot;
+
+			CalculateDockingValues(part, nodeTransform, dockingOrientation, targetPart, targetNodeTransform, targetDockingOrientation, snapCount, out partOrgPos, out partOrgRot);
 
 			// set positions for docking (required, for orgPos/orgRot calculation that is done internally)
 			targetVessel.SetRotation(targetVessel.transform.rotation);
-			vessel.SetRotation(Quaternion.FromToRotation(nodeTransform.forward, -targetNodeTransform.forward) * vessel.transform.rotation);
-			vessel.SetPosition(vessel.transform.position - (nodeTransform.position - targetNodeTransform.position), usePristineCoords: true);
+
+			vessel.SetRotation(targetVessel.transform.rotation * partOrgRot * Quaternion.Inverse(part.orgRot));
+			vessel.SetPosition(targetVessel.transform.position + targetVessel.transform.rotation * partOrgPos - vessel.transform.rotation * part.orgPos);
+
 			vessel.IgnoreGForces(10);
 
 			// couple parts
@@ -383,21 +417,22 @@ part.attachJoint.joints[0].SetTargetRotationLocal((Quaternion.Inverse(part.trans
 			GameEvents.onVesselWasModified.Fire(targetVessel);
 			GameEvents.onDockingComplete.Fire(new GameEvents.FromToAction<Part, Part>(part, targetPart));
 
-		//	part.fuelLookupTargets.Add(targetPart);
-		//	targetPart.fuelLookupTargets.Add(part);
-		//	GameEvents.onPartFuelLookupStateChange.Fire(new GameEvents.HostedFromToAction<bool, Part>(true, targetPart, part));
+			part.fuelLookupTargets.Add(targetPart);
+			targetPart.fuelLookupTargets.Add(part);
+			GameEvents.onPartFuelLookupStateChange.Fire(new GameEvents.HostedFromToAction<bool, Part>(true, targetPart, part));
 		}
 
 		private static void ExecuteDockSameVessel(
 			Part part, Transform nodeTransform, Vector3 dockingOrientation,
 			Part targetPart, Transform targetNodeTransform, Vector3 targetDockingOrientation,
-			int snapCount,
-			out Vector3 part_orgPos, out Quaternion part_orgRot, out ConfigurableJoint sameVesselJoint)
+			int snapCount, out ConfigurableJoint sameVesselJoint)
 		{
 		//	GameEvents.onSameVesselDock.Fire(new GameEvents.FromToAction<ModuleDockingNode, ModuleDockingNode>(this, node));
 
 			// calculate docking orientation
-			CalculateDockingValues(targetPart, targetNodeTransform, targetDockingOrientation, part, nodeTransform, dockingOrientation, snapCount, out part_orgPos, out part_orgRot);
+			Vector3 partOrgPos; Quaternion partOrgRot;
+
+			CalculateDockingValues(part, nodeTransform, dockingOrientation, targetPart, targetNodeTransform, targetDockingOrientation, snapCount, out partOrgPos, out partOrgRot);
 
 			// create joint
 			ConfigurableJoint cfj = part.gameObject.AddComponent<ConfigurableJoint>();
@@ -409,7 +444,7 @@ part.attachJoint.joints[0].SetTargetRotationLocal((Quaternion.Inverse(part.trans
 			cfj.connectedAnchor = targetPart.transform.InverseTransformPoint(targetNodeTransform.position);
 
 			cfj.SetTargetRotationLocal((Quaternion.Inverse(part.transform.rotation) * targetPart.transform.rotation *
-				(Quaternion.Inverse(targetPart.orgRot) * part.orgRot)).normalized, Quaternion.identity);
+				(Quaternion.Inverse(targetPart.orgRot) * partOrgRot)).normalized, Quaternion.identity);
 
 			float stackNodeFactor = 2f;
 			float srfNodeFactor = 0.8f;
@@ -421,14 +456,11 @@ part.attachJoint.joints[0].SetTargetRotationLocal((Quaternion.Inverse(part.trans
 
 			float linearForce = Mathf.Min(part.breakingForce, targetPart.breakingForce) *
 				breakingForceModifier *
-				(attachNodeSize + 1f) * (part.attachMode == AttachModes.SRF_ATTACH ? srfNodeFactor : stackNodeFactor)
-				/ part.attachJoint.joints.Count;
+				(attachNodeSize + 1f) * (part.attachMode == AttachModes.SRF_ATTACH ? srfNodeFactor : stackNodeFactor);
 
 			float torqueForce = Mathf.Min(part.breakingTorque, targetPart.breakingTorque) *
 				breakingTorqueModifier *
-				(attachNodeSize + 1f) * (part.attachMode == AttachModes.SRF_ATTACH ? srfNodeFactor : stackNodeFactor)
-				/ part.attachJoint.joints.Count;
-
+				(attachNodeSize + 1f) * (part.attachMode == AttachModes.SRF_ATTACH ? srfNodeFactor : stackNodeFactor);
 
 			float extraLinearForce = PhysicsGlobals.JointForce;
 			float extraLinearSpring = PhysicsGlobals.JointForce;
@@ -475,12 +507,74 @@ part.attachJoint.joints[0].SetTargetRotationLocal((Quaternion.Inverse(part.trans
 			cfj.breakForce = linearForce;
 			cfj.breakTorque = torqueForce;
 
-		//	CorrectAttachJoint(part);
-
-		//	GameEvents.onVesselWasModified.Fire(targetVessel);
+			GameEvents.onVesselWasModified.Fire(targetPart.vessel);
 		//	GameEvents.onDockingComplete.Fire(new GameEvents.FromToAction<Part, Part>(part, targetPart));
 
+			// option -> if we would do this here, we woulnd't have to do it in ExecuteReDockVessels
+			// -> but, KSP doesn't do it when docking to sameVessel
+
+		//	part.fuelLookupTargets.Add(targetPart);
+		//	targetPart.fuelLookupTargets.Add(part);
+		//	GameEvents.onPartFuelLookupStateChange.Fire(new GameEvents.HostedFromToAction<bool, Part>(true, targetPart, part));
+
 			sameVesselJoint = cfj;
+		}
+
+		// re-docks a vessel to the targetVessel after having been docked via the parts as same vessel docking
+		private static void ExecuteReDockVessels(
+			Part part, Transform nodeTransform, Vector3 dockingOrientation,
+			Part targetPart, Transform targetNodeTransform, Vector3 targetDockingOrientation, int snapCount,
+			List<Part> virtualVesselParts)
+		{
+			Vessel vessel = part.vessel;
+
+		//	GameEvents.onVesselDocking.Fire(vessel.persistentId, vessel.persistentId);
+			GameEvents.onActiveJointNeedUpdate.Fire(vessel);
+
+			// save current positions
+			posInfo posInfo = BuildPosInfo(vessel);
+	
+			// calculate docking orientation
+			Vector3 partOrgPos; Quaternion partOrgRot;
+
+			CalculateDockingValues(part, nodeTransform, dockingOrientation, targetPart, targetNodeTransform, targetDockingOrientation, snapCount, out partOrgPos, out partOrgRot);
+
+			// set positions for docking (required, for orgPos/orgRot calculation that is done internally)
+			vessel.SetRotation(vessel.transform.rotation);
+
+			Quaternion relativeRot = targetPart.transform.rotation * Quaternion.Inverse(targetPart.orgRot);
+
+			SetRotation(virtualVesselParts, relativeRot);
+			SetPosition(virtualVesselParts, relativeRot, targetPart.transform.position - relativeRot * targetPart.orgPos);
+
+			vessel.IgnoreGForces(10);
+
+			foreach(Part p in virtualVesselParts)
+				p.UpdateOrgPosAndRot(vessel.rootPart);
+
+			// couple parts
+			Couple(part, targetPart);
+
+			// fix the order of the parts in the vessel
+			foreach(Part p in virtualVesselParts)
+				p.vessel.parts.Remove(p);
+
+			SetVessel(part);
+
+			// restore positions
+			ApplyPosInfo(posInfo, vessel);
+
+			FlightInputHandler.SetNeutralControls();
+
+			for(int i = 0; i < vessel.parts.Count; i++)
+				vessel.parts[i].SetCollisionIgnores();
+
+			GameEvents.onVesselWasModified.Fire(vessel);
+		//	GameEvents.onDockingComplete.Fire(new GameEvents.FromToAction<Part, Part>(part, targetPart));
+
+			part.fuelLookupTargets.Add(targetPart);
+			targetPart.fuelLookupTargets.Add(part);
+			GameEvents.onPartFuelLookupStateChange.Fire(new GameEvents.HostedFromToAction<bool, Part>(true, targetPart, part));
 		}
 
 		public static void DockVessels(IDockable part, IDockable targetPart)
@@ -490,12 +584,11 @@ part.attachJoint.joints[0].SetTargetRotationLocal((Quaternion.Inverse(part.trans
 				DockingEvents.onVesselDocking.Fire(part, targetPart);
 
 				DockedVesselInfo vesselInfo, targetVesselInfo;
-				Vector3 part_orgPos; Quaternion part_orgRot;
 
 				ExecuteDockVessels(part.GetPart(), part.GetNodeTransform(), part.GetDockingOrientation(),
 					targetPart.GetPart(), targetPart.GetNodeTransform(), targetPart.GetDockingOrientation(),
 					Math.Min(part.GetSnapCount(), targetPart.GetSnapCount()),
-					out vesselInfo, out targetVesselInfo, out part_orgPos, out part_orgRot);
+					out vesselInfo, out targetVesselInfo);
 
 				DockInfo dockInfo = new DockInfo { part = part, targetPart = targetPart, vesselInfo = vesselInfo, targetVesselInfo = targetVesselInfo,
 					isSameVesselJoint = false, sameVesselJoint = null };
@@ -509,13 +602,12 @@ part.attachJoint.joints[0].SetTargetRotationLocal((Quaternion.Inverse(part.trans
 			{
 				DockingEvents.onSameVesselDocking.Fire(part, targetPart);
 
-				Vector3 part_orgPos; Quaternion part_orgRot;
 				ConfigurableJoint _sameVesselJoint = null;
 
 				ExecuteDockSameVessel(part.GetPart(), part.GetNodeTransform(), part.GetDockingOrientation(),
 					targetPart.GetPart(), targetPart.GetNodeTransform(), targetPart.GetDockingOrientation(),
 					Math.Min(part.GetSnapCount(), targetPart.GetSnapCount()),
-					out part_orgPos, out part_orgRot, out _sameVesselJoint);
+					out _sameVesselJoint);
 
 				DockInfo dockInfo = new DockInfo { part = part, targetPart = targetPart, vesselInfo = null, targetVesselInfo = null,
 					isSameVesselJoint = true, sameVesselJoint = _sameVesselJoint };
@@ -527,42 +619,37 @@ part.attachJoint.joints[0].SetTargetRotationLocal((Quaternion.Inverse(part.trans
 			}
 		}
 
-		private static void RedockVessel(DockInfo di, Vessel vessel)
+		private static void RedockVessel(DockInfo targetDockInfo, DockInfo dockInfo, List<Part> virtualVesselParts)
 		{
-			if(di.sameVesselJoint)
-				UnityEngine.Object.Destroy(di.sameVesselJoint);
+			IDockable part, targetPart;
 
-			di.isSameVesselJoint = false;
-			di.sameVesselJoint = null;
-
-			DockedVesselInfo vesselInfo, targetVesselInfo;
-			Vector3 part_orgPos; Quaternion part_orgRot;
-
-			DockInfo dockInfo;
-
-			if(di.targetPart.GetPart().vessel == vessel)
-			{
-				ExecuteDockVessels(di.part.GetPart(), di.part.GetNodeTransform(), di.part.GetDockingOrientation(),
-					di.targetPart.GetPart(), di.targetPart.GetNodeTransform(), di.targetPart.GetDockingOrientation(),
-					Math.Min(di.part.GetSnapCount(), di.targetPart.GetSnapCount()),
-					out vesselInfo, out targetVesselInfo, out part_orgPos, out part_orgRot);
-
-				dockInfo = new DockInfo { part = di.part, targetPart = di.targetPart, vesselInfo = vesselInfo, targetVesselInfo = targetVesselInfo,
-					isSameVesselJoint = false, sameVesselJoint = null };
-			}
+			if(virtualVesselParts.Contains(targetDockInfo.part.GetPart()))
+			{ part = targetDockInfo.part; targetPart = targetDockInfo.targetPart; }
 			else
-			{
-				ExecuteDockVessels(di.targetPart.GetPart(), di.targetPart.GetNodeTransform(), di.targetPart.GetDockingOrientation(),
-					di.part.GetPart(), di.part.GetNodeTransform(), di.part.GetDockingOrientation(),
-					Math.Min(di.targetPart.GetSnapCount(), di.part.GetSnapCount()),
-					out vesselInfo, out targetVesselInfo, out part_orgPos, out part_orgRot);
+			{ part = targetDockInfo.targetPart; targetPart = targetDockInfo.part; }
 
-				dockInfo = new DockInfo { part = di.targetPart, targetPart = di.part, vesselInfo = vesselInfo, targetVesselInfo = targetVesselInfo,
-					isSameVesselJoint = false, sameVesselJoint = null };
+			DockingEvents.onDockingSwitching.Fire(targetDockInfo.part, part);
+			DockingEvents.onDockingSwitching.Fire(targetDockInfo.targetPart, targetPart);
+
+			ExecuteReDockVessels(part.GetPart(), part.GetNodeTransform(), part.GetDockingOrientation(),
+							targetPart.GetPart(), targetPart.GetNodeTransform(), targetPart.GetDockingOrientation(),
+							Math.Min(part.GetSnapCount(), targetPart.GetSnapCount()),
+							virtualVesselParts);
+
+			DockInfo dockInfoNew = new DockInfo { part = part, targetPart = targetPart, vesselInfo = null, targetVesselInfo = null,
+				isSameVesselJoint = false, sameVesselJoint = null };
+
+			if(dockInfo != null) // the only valid dockInfo data come from dockInfo (may be null if it was pre-attached / targetDockInfo is a sameVesselJoint and doesn't have this data)
+			{
+				dockInfoNew.vesselInfo = dockInfo.vesselInfo;
+				dockInfoNew.targetVesselInfo = dockInfo.targetVesselInfo;
 			}
 
-			di.part.SetDockInfo(dockInfo);
-			di.targetPart.SetDockInfo(dockInfo);
+			targetDockInfo.part.SetDockInfo(dockInfoNew);
+			targetDockInfo.targetPart.SetDockInfo(dockInfoNew);
+
+			DockingEvents.onDockingSwitched.Fire(targetDockInfo.part, part);
+			DockingEvents.onDockingSwitched.Fire(targetDockInfo.targetPart, targetPart);
 		}
 
 		public static void UndockVessels(IDockable part, IDockable targetPart)
@@ -570,23 +657,21 @@ part.attachJoint.joints[0].SetTargetRotationLocal((Quaternion.Inverse(part.trans
 			if(part.GetPart().vessel != targetPart.GetPart().vessel)
 				return;
 
+			IDockable vesselPart = part;
+
 			if(targetPart.GetPart().parent == part.GetPart())
 			{ IDockable temp = part; part = targetPart; targetPart = temp; }
 
 			Dictionary<Part, DockInfo> data = FindAllDockInfo(part.GetPart().vessel);
 
-			DockInfo r;
-			data.TryGetValue(part.GetPart(), out r);
-
-		//	DockInfo r2;
-		//	data.TryGetValue(targetPart.GetPart(), out r2);
-
-			if((r != null) && r.isSameVesselJoint)
+			DockInfo dockInfo;
+			if((data.TryGetValue(part.GetPart(), out dockInfo) || data.TryGetValue(targetPart.GetPart(), out dockInfo))
+				&& dockInfo.isSameVesselJoint)
 			{
 				DockingEvents.onSameVesselUndocking.Fire(part, targetPart);
 
-				if(r.sameVesselJoint)
-					UnityEngine.Object.Destroy(r.sameVesselJoint);
+				if(dockInfo.sameVesselJoint)
+					UnityEngine.Object.Destroy(dockInfo.sameVesselJoint);
 
 				part.SetDockInfo(null);
 				targetPart.SetDockInfo(null);
@@ -595,40 +680,52 @@ part.attachJoint.joints[0].SetTargetRotationLocal((Quaternion.Inverse(part.trans
 			}
 			else
 			{
-				List<Part> children = FindChildParts(part.GetPart());
+				List<Part> virtualVesselParts = FindParts(part.GetPart());
 
-				DockInfo di = null;
+				DockInfo targetDockInfo = null;
 
 				foreach(KeyValuePair<Part, DockInfo> kv in data)
 				{
-					if(children.Contains(kv.Key) != children.Contains(kv.Value.targetPart.GetPart()))
+					if((kv.Value != dockInfo)
+					&& (virtualVesselParts.Contains(kv.Key) != virtualVesselParts.Contains(kv.Value.targetPart.GetPart())))
 					{
-						di = kv.Value;
+						targetDockInfo = kv.Value;
 						break;
 					}
 				}
 
-				if(di != null)
+				if(targetDockInfo != null)
 				{
-					DockingEvents.onDockingSwitching.Fire(di.part, part);
-					DockingEvents.onDockingSwitching.Fire(di.targetPart, targetPart);
+					if(!targetDockInfo.isSameVesselJoint)
+						Logger.Log("found secondary dockInfo without isSameVesselJoint flag", Logger.Level.Error);
 
 					DockingEvents.onSameVesselUndocking.Fire(part, targetPart);
 
-					Vessel oldVessel = part.GetPart().vessel;
+					if((bool)part.GetPart().attachJoint)
+						part.GetPart().attachJoint.DestroyJoint();
 
-					if((r != null) && (r.vesselInfo != null))
-						part.GetPart().Undock(r.vesselInfo);
-					else
-						part.GetPart().decouple();
+					AttachNode attachNode = part.GetPart().FindAttachNodeByPart(part.GetPart().parent);
+					if(attachNode != null)
+					{
+						attachNode.attachedPart = null;
+
+						int i = 0;
+						for(int count = part.GetPart().Modules.Count; i < count; i++)
+						{
+							if(part.GetPart().Modules[i] is IActivateOnDecouple activateOnDecouple)
+								activateOnDecouple.DecoupleAction(attachNode.id, weDecouple: true);
+						}
+					}
+
+					if(targetDockInfo.sameVesselJoint)
+						UnityEngine.Object.Destroy(targetDockInfo.sameVesselJoint);
+
+					part.GetPart().setParent();
 
 					part.SetDockInfo(null);
 					targetPart.SetDockInfo(null);
 
-					RedockVessel(di, oldVessel);
-
-					DockingEvents.onDockingSwitched.Fire(di.part, part);
-					DockingEvents.onDockingSwitched.Fire(di.targetPart, targetPart);
+					RedockVessel(targetDockInfo, dockInfo, virtualVesselParts);
 
 					DockingEvents.onSameVesselUndocked.Fire(part, targetPart);
 				}
@@ -636,8 +733,8 @@ part.attachJoint.joints[0].SetTargetRotationLocal((Quaternion.Inverse(part.trans
 				{
 					DockingEvents.onVesselUndocking.Fire(part, targetPart);
 
-					if((r != null) && (r.vesselInfo != null))
-						part.GetPart().Undock(r.vesselInfo);
+					if((dockInfo != null) && (dockInfo.vesselInfo != null))
+						part.GetPart().Undock(dockInfo.vesselInfo);
 					else
 						part.GetPart().decouple();
 
@@ -650,19 +747,54 @@ part.attachJoint.joints[0].SetTargetRotationLocal((Quaternion.Inverse(part.trans
 				//	targetPart.fuelLookupTargets.Remove(part);
 				//	GameEvents.onPartFuelLookupStateChange.Fire(new GameEvents.HostedFromToAction<bool, Part>(true, part, targetPart));
 				}
+
+				// set focus to correct vessel
+				if(FlightGlobals.ActiveVessel != vesselPart.GetPart().vessel)
+				{
+					FlightGlobals.ForceSetActiveVessel(vesselPart.GetPart().vessel);
+					FlightInputHandler.SetNeutralControls();
+				}
 			}
 
-// FEHELR, beim undock noch die korrekte Kamera setzen und so weiter und so fort... und, was heisst hier schon "target"? ... na ja...
+			// option -> set other camera ?
 		}
 
-// FEHLER, mit isSameVesselJoint noch laden lernen
-		public static void OnLoad(IDockable part1, DockedVesselInfo vesselInfo1, IDockable part2, DockedVesselInfo vesselInfo2) 
+		// call this function to rebuild the docking state information after loading
+		public static void OnLoad(IDockable part, DockedVesselInfo vesselInfo, IDockable targetPart, DockedVesselInfo targetVesselInfo)
 		{
-			DockInfo dockInfo = new DockInfo { part = part1, targetPart = part2, vesselInfo = vesselInfo1, targetVesselInfo = vesselInfo2,
-				isSameVesselJoint = false, sameVesselJoint = null };
+			// checks (just to be sure)
+			if(part.GetPart().parent != targetPart.GetPart()) // -> sameVesselJoint
+			{
+				if(targetPart.GetPart().parent == part.GetPart())
+				{
+					Logger.Log("wrong configuration detected", Logger.Level.Error);
+					return; // this should not happen
+				}
 
-			part1.SetDockInfo(dockInfo);
-			part2.SetDockInfo(dockInfo);
+				if(part.GetDockInfo() != null)
+				{
+					Logger.Log("sameVesselJoint already built", Logger.Level.Error);
+					return; // this should not happen
+				}
+			}
+
+			DockInfo dockInfo = new DockInfo { part = part, targetPart = targetPart, vesselInfo = vesselInfo, targetVesselInfo = targetVesselInfo,
+				isSameVesselJoint = (part.GetPart().parent != targetPart.GetPart()), sameVesselJoint = null };
+
+			if(dockInfo.isSameVesselJoint)
+			{
+				ConfigurableJoint _sameVesselJoint = null;
+
+				ExecuteDockSameVessel(part.GetPart(), part.GetNodeTransform(), part.GetDockingOrientation(),
+					targetPart.GetPart(), targetPart.GetNodeTransform(), targetPart.GetDockingOrientation(),
+					Math.Min(part.GetSnapCount(), targetPart.GetSnapCount()),
+					out _sameVesselJoint);
+
+				dockInfo.sameVesselJoint = _sameVesselJoint;
+			}
+
+			part.SetDockInfo(dockInfo);
+			targetPart.SetDockInfo(dockInfo);
 		}
 	}
 }
