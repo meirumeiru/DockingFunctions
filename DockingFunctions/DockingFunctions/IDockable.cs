@@ -28,7 +28,7 @@ namespace DockingFunctions
 
 		// available for other mods to get information
 
-		bool IsActive();
+		bool IsReady();
 		ITargetable GetTargetable();
 
 		bool IsDocked();
