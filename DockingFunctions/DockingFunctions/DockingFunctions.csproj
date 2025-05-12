@@ -81,7 +81,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="DockingEvents.cs" />
+    <Compile Include="DockingPortRenameDialog.cs" />
     <Compile Include="IDockable.cs" />
+    <Compile Include="UIAssetLoader.cs" />
     <Compile Include="Utility\Logger.cs" />
     <Compile Include="VesselPositionManager.cs" />
     <Compile Include="DockingHelper.cs" />

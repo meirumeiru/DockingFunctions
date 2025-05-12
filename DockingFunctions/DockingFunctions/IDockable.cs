@@ -1,5 +1,4 @@
-﻿using System;
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace DockingFunctions
 {
@@ -28,6 +27,9 @@ namespace DockingFunctions
 		void SetDockInfo(DockInfo dockInfo);
 
 		// available for other mods to get information
+
+		bool IsActive();
+		ITargetable GetTargetable();
 
 		bool IsDocked();
 		IDockable GetOtherDockable();
