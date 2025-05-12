@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<KSPBundleDefinition xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" UrlName="dockingfunctions" Name="dockingfunctions" CreatedTime="-8584546083478471834" AutoLoad="false">
+  <Author />
+  <Info />
+  <Assets>
+    <Asset Name="NotoSans-Regular SDF2" Path="Assets/Fonts/Test/NotoSans-Regular SDF2.asset" Type="TMP_FontAsset" Url="Fonts/Test/NotoSans-Regular SDF2" AutoLoad="false" />
+    <Asset Name="gen_panel_bg3" Path="Assets/Images/gen_panel_bg3.png" Type="Texture2D" Url="Images/gen_panel_bg3" AutoLoad="false" />
+    <Asset Name="rect_round_color" Path="Assets/Images/rect_round_color.png" Type="Texture2D" Url="Images/rect_round_color" AutoLoad="false" />
+    <Asset Name="rect_round_dark" Path="Assets/Images/rect_round_dark.png" Type="Texture2D" Url="Images/rect_round_dark" AutoLoad="false" />
+    <Asset Name="rect_round_dark_transparent_1" Path="Assets/Images/rect_round_dark_transparent_1.png" Type="Texture2D" Url="Images/rect_round_dark_transparent_1" AutoLoad="false" />
+    <Asset Name="rect_round_down_0" Path="Assets/Images/rect_round_down_0.png" Type="Texture2D" Url="Images/rect_round_down_0" AutoLoad="false" />
+    <Asset Name="rect_round_down_dark_veryTransparent" Path="Assets/Images/rect_round_down_dark_veryTransparent.png" Type="Texture2D" Url="Images/rect_round_down_dark_veryTransparent" AutoLoad="false" />
+    <Asset Name="DockingPortRenameDialog" Path="Assets/Prefabs/DockingPortRenameDialog.prefab" Type="GameObject" Url="Prefabs/DockingPortRenameDialog" AutoLoad="false" />
+  </Assets>
+  <Dependencies />
+</KSPBundleDefinition>

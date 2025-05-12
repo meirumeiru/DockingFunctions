@@ -3,7 +3,6 @@
 *.scc
 *.suo
 *.user
-
 /*.bat
 
 /DockingPort-Next/*.sln
@@ -13,4 +12,10 @@
 /DockingFunctions/DockingFunctions/bin/
 /DockingFunctions/DockingFunctions/obj/
 
-/Resources/Unity-UI
+/Resources/Unity-UI/Library/
+/Resources/Unity-UI/Logs/
+/Resources/Unity-UI/Temp/
+
+/Resources/Unity-UI/Assets/TextMesh Pro/
+
+/Resources/Unity-UI/Assets/Fonts/Test/
