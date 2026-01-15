@@ -731,6 +731,9 @@ namespace DockingFunctions
 				}
 				else
 				{
+					bool SAS = part.GetPart().vessel.ActionGroups[KSPActionGroup.SAS];
+					bool RCS = part.GetPart().vessel.ActionGroups[KSPActionGroup.RCS];
+
 					DockingEvents.onVesselUndocking.Fire(part, targetPart);
 
 					if((dockInfo != null) && (dockInfo.vesselInfo != null))
@@ -740,6 +743,13 @@ namespace DockingFunctions
 
 					part.SetDockInfo(null);
 					targetPart.SetDockInfo(null);
+
+					// copy sas and rcs state
+					part.GetPart().vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, SAS);
+					part.GetPart().vessel.ActionGroups.SetGroup(KSPActionGroup.RCS, RCS);
+
+					targetPart.GetPart().vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, SAS);
+					targetPart.GetPart().vessel.ActionGroups.SetGroup(KSPActionGroup.RCS, RCS);
 
 					DockingEvents.onVesselUndocked.Fire(part, targetPart);
 

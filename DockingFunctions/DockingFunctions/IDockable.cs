@@ -28,6 +28,7 @@ namespace DockingFunctions
 
 		// available for other mods to get information
 
+		bool IsCompatible(IDockable otherPort);
 		bool IsReadyFor(IDockable otherPort);
 		ITargetable GetTargetable();
 
