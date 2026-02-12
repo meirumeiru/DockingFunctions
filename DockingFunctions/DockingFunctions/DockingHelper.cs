@@ -265,6 +265,60 @@ namespace DockingFunctions
 		}
 
 		//////////////////////////////
+		// Latching
+
+		private static void CalculateLatchingValues(
+			Part part, Transform nodeTransform, Vector3 dockingOrientation,
+			Transform targetNodeTransform, Vector3 targetDockingOrientation,
+			int snapCount, out Vector3 part_position, out Quaternion part_rotation)
+		{
+			// relative rotation targetNodeTransform -> nodeTransform
+			Quaternion nodeToNode =
+				Quaternion.AngleAxis(180f, targetDockingOrientation)
+				* Quaternion.AngleAxis(Vector3.SignedAngle(targetDockingOrientation, dockingOrientation, Vector3.forward), Vector3.forward);
+
+			// find docking angle (from current values, not org-values) -> used for decision which docking angle ("snap angle") to choose
+			float dockingAngle =
+			Vector3.SignedAngle(targetNodeTransform.rotation * targetDockingOrientation, nodeTransform.rotation * dockingOrientation,
+				nodeTransform.forward);
+
+			// -> at correct docking with 0 degrees, the DockingOrientation of both ports point into the same direction
+
+			float snapAngle = 360f / snapCount;
+
+			dockingAngle = Mathf.Round(dockingAngle / snapAngle) * snapAngle;
+
+			nodeToNode = nodeToNode * Quaternion.AngleAxis(dockingAngle, Vector3.forward);
+
+			// relative rotation nodeTransform -> part
+			Quaternion part_relRot =
+				Quaternion.Inverse(nodeTransform.rotation)
+				* part.transform.rotation;
+
+			// relative position nodeTransform -> part
+			Vector3 part_relPos =
+				Quaternion.Inverse(nodeTransform.rotation)
+				* (part.transform.position - nodeTransform.position);
+
+			// final solution targetPart.position/rotation -> part.position/rotation
+
+			Vector3 nodeTransform_position = targetNodeTransform.position;
+			Quaternion nodeTransform_rotation = targetNodeTransform.rotation * nodeToNode;
+
+			part_position = nodeTransform_position + nodeTransform_rotation * part_relPos;
+			part_rotation = nodeTransform_rotation * part_relRot;
+		}
+
+		public static void CalculateLatchingPositionAndRotation(IDockable part, IDockable targetPart, out Vector3 partPosition, out Quaternion partRotation)
+		{
+			CalculateLatchingValues(
+				part.GetPart(), part.GetNodeTransform(), part.GetDockingOrientation(),
+				targetPart.GetNodeTransform(), targetPart.GetDockingOrientation(),
+				Math.Min(part.GetSnapCount(), targetPart.GetSnapCount()),
+				out partPosition, out partRotation);
+		}
+
+		//////////////////////////////
 		// Docking
 
 		private static void CalculateDockingValues(
@@ -462,14 +516,6 @@ namespace DockingFunctions
 				breakingTorqueModifier *
 				(attachNodeSize + 1f) * (part.attachMode == AttachModes.SRF_ATTACH ? srfNodeFactor : stackNodeFactor);
 
-			float extraLinearForce = PhysicsGlobals.JointForce;
-			float extraLinearSpring = PhysicsGlobals.JointForce;
-			float extraLinearDamper = 0f;
-
-			float extraAngularForce = PhysicsGlobals.JointForce;
-			float extraAngularSpring = 60000f;
-			float extraAngularDamper = 0f;
-
 			cfj.xMotion = cfj.yMotion = cfj.zMotion = ConfigurableJointMotion.Limited;
 			cfj.angularXMotion = cfj.angularYMotion = cfj.angularZMotion = ConfigurableJointMotion.Limited;
 
@@ -498,10 +544,10 @@ namespace DockingFunctions
 			cfj.linearLimit = linearJointLimit;
 			cfj.linearLimitSpring = linearJointLimitSpring;
 
-			JointDrive angularDrive = new JointDrive { maximumForce = extraAngularForce, positionSpring = extraAngularSpring, positionDamper = extraAngularDamper };
+			JointDrive angularDrive = new JointDrive { maximumForce = PhysicsGlobals.JointForce, positionSpring = 60000f, positionDamper = 0f };
 			cfj.angularXDrive = cfj.angularYZDrive = angularDrive; 
 
-			JointDrive linearDrive = new JointDrive { maximumForce = extraLinearForce, positionSpring = extraLinearSpring, positionDamper = extraLinearDamper };
+			JointDrive linearDrive = new JointDrive { maximumForce = PhysicsGlobals.JointForce, positionSpring = PhysicsGlobals.JointForce, positionDamper = 0f };
 			cfj.xDrive = cfj.yDrive = cfj.zDrive = linearDrive;
 
 			cfj.breakForce = linearForce;
