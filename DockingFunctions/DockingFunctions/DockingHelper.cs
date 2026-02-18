@@ -151,6 +151,12 @@ namespace DockingFunctions
 				position = p_position;
 				rotation = p_rotation;
 			}
+
+			public void Apply(Part p)
+			{
+				p.transform.position = position;
+				p.transform.rotation = rotation;
+			}
 		}
 
 		public class posInfo
@@ -177,8 +183,7 @@ namespace DockingFunctions
 				if(!info.data.TryGetValue(p, out r))
 					continue;
 
-				p.transform.position = r.position;
-				p.transform.rotation = r.rotation;
+				r.Apply(p);
 			}
 		}
 
@@ -193,7 +198,7 @@ namespace DockingFunctions
 			}
 		}
 
-		private static void SetPosition(List<Part> parts, Quaternion rotation, Vector3 position)
+		private static void SetPosition(List<Part> parts, QuaternionD rotation, Vector3 position)
 		{
 			for(int i = 0; i < parts.Count; i++)
 			{
@@ -321,7 +326,8 @@ namespace DockingFunctions
 		//////////////////////////////
 		// Docking
 
-		private static void CalculateDockingValues(
+// FEHLER, nicht mehr verwenden, stattdessen IMMER über das Latching gehen und vorher die Teils auf org-Pos setzen -> geht viel besser und einfacher
+/*		private static void CalculateDockingValues(
 			Part part, Transform nodeTransform, Vector3 dockingOrientation,
 			Part targetPart, Transform targetNodeTransform, Vector3 targetDockingOrientation,
 			int snapCount, out Vector3 part_orgPos, out Quaternion part_orgRot)
@@ -391,7 +397,7 @@ namespace DockingFunctions
 			partPosition = targetVessel.transform.position + targetVessel.transform.rotation * partOrgPos;
 			partRotation = targetVessel.transform.rotation * partOrgRot;
 		}
-
+*/
 		// docks a vessel to the targetVessel
 		private static void ExecuteDockVessels(
 			Part part, Transform nodeTransform, Vector3 dockingOrientation,
@@ -427,16 +433,16 @@ namespace DockingFunctions
 			posInfo posInfo = BuildPosInfo(vessel);
 			posInfo targetPosInfo = BuildPosInfo(targetVessel);
 
-			// calculate docking orientation
-			Vector3 partOrgPos; Quaternion partOrgRot;
-
-			CalculateDockingValues(part, nodeTransform, dockingOrientation, targetPart, targetNodeTransform, targetDockingOrientation, snapCount, out partOrgPos, out partOrgRot);
-
 			// set positions for docking (required, for orgPos/orgRot calculation that is done internally)
 			targetVessel.SetRotation(targetVessel.transform.rotation);
 
-			vessel.SetRotation(targetVessel.transform.rotation * partOrgRot * Quaternion.Inverse(part.orgRot));
-			vessel.SetPosition(targetVessel.transform.position + targetVessel.transform.rotation * partOrgPos - vessel.transform.rotation * part.orgPos);
+			// calculate docking orientation
+			Vector3 partPos; Quaternion partRot;
+
+			CalculateLatchingValues(part, nodeTransform, dockingOrientation, targetNodeTransform, targetDockingOrientation, snapCount, out partPos, out partRot);
+
+			vessel.SetRotation(partRot * Quaternion.Inverse(part.orgRot));
+			vessel.SetPosition(partPos - vessel.transform.rotation * part.orgPos);
 
 			vessel.IgnoreGForces(10);
 
@@ -483,22 +489,25 @@ namespace DockingFunctions
 		{
 		//	GameEvents.onSameVesselDock.Fire(new GameEvents.FromToAction<ModuleDockingNode, ModuleDockingNode>(this, node));
 
-			// calculate docking orientation
-			Vector3 partOrgPos; Quaternion partOrgRot;
+			posInfoPart posInfoTargetPart = new posInfoPart(targetPart);
+			posInfoPart posInfoPart = new posInfoPart(part);
 
-			CalculateDockingValues(part, nodeTransform, dockingOrientation, targetPart, targetNodeTransform, targetDockingOrientation, snapCount, out partOrgPos, out partOrgRot);
+			// set to orgPos/orgRot
+			targetPart.partTransform.rotation = targetPart.vessel.transform.rotation * targetPart.orgRot;
+			targetPart.partTransform.position = targetPart.vessel.transform.position + ((QuaternionD)targetPart.vessel.transform.rotation) * targetPart.orgPos;
+
+			// calculate docking orientation
+			Vector3 partPos; Quaternion partRot;
+
+			CalculateLatchingValues(part, nodeTransform, dockingOrientation, targetNodeTransform, targetDockingOrientation, snapCount, out partPos, out partRot);
+
+			part.partTransform.rotation = partRot;
+			part.partTransform.position = partPos;
 
 			// create joint
 			ConfigurableJoint cfj = part.gameObject.AddComponent<ConfigurableJoint>();
 
 			cfj.connectedBody = targetPart.GetComponent<Rigidbody>();
-
-			cfj.autoConfigureConnectedAnchor = false;
-			cfj.anchor = part.transform.InverseTransformPoint(nodeTransform.position);
-			cfj.connectedAnchor = targetPart.transform.InverseTransformPoint(targetNodeTransform.position);
-
-			cfj.SetTargetRotationLocal((Quaternion.Inverse(part.transform.rotation) * targetPart.transform.rotation *
-				(Quaternion.Inverse(targetPart.orgRot) * partOrgRot)).normalized, Quaternion.identity);
 
 			float stackNodeFactor = 2f;
 			float srfNodeFactor = 0.8f;
@@ -553,6 +562,9 @@ namespace DockingFunctions
 			cfj.breakForce = linearForce;
 			cfj.breakTorque = torqueForce;
 
+			posInfoTargetPart.Apply(targetPart);
+			posInfoPart.Apply(part);
+
 			GameEvents.onVesselWasModified.Fire(targetPart.vessel);
 		//	GameEvents.onDockingComplete.Fire(new GameEvents.FromToAction<Part, Part>(part, targetPart));
 
@@ -580,18 +592,19 @@ namespace DockingFunctions
 			// save current positions
 			posInfo posInfo = BuildPosInfo(vessel);
 	
-			// calculate docking orientation
-			Vector3 partOrgPos; Quaternion partOrgRot;
-
-			CalculateDockingValues(part, nodeTransform, dockingOrientation, targetPart, targetNodeTransform, targetDockingOrientation, snapCount, out partOrgPos, out partOrgRot);
-
 			// set positions for docking (required, for orgPos/orgRot calculation that is done internally)
 			vessel.SetRotation(vessel.transform.rotation);
 
-			Quaternion relativeRot = targetPart.transform.rotation * Quaternion.Inverse(targetPart.orgRot);
+			// calculate docking orientation
+			Vector3 partPos; Quaternion partRot;
 
-			SetRotation(virtualVesselParts, relativeRot);
-			SetPosition(virtualVesselParts, relativeRot, targetPart.transform.position - relativeRot * targetPart.orgPos);
+			CalculateLatchingValues(part, nodeTransform, dockingOrientation, targetNodeTransform, targetDockingOrientation, snapCount, out partPos, out partRot);
+
+			foreach(Part p in virtualVesselParts)
+				p.UpdateOrgPosAndRot(part);
+
+			SetRotation(virtualVesselParts, partRot);
+			SetPosition(virtualVesselParts, partRot, partPos);
 
 			vessel.IgnoreGForces(10);
 
@@ -621,6 +634,18 @@ namespace DockingFunctions
 			part.fuelLookupTargets.Add(targetPart);
 			targetPart.fuelLookupTargets.Add(part);
 			GameEvents.onPartFuelLookupStateChange.Fire(new GameEvents.HostedFromToAction<bool, Part>(true, targetPart, part));
+		}
+
+		// undocks a vessel
+
+		private static IEnumerator ExecuteUndockVessels(Part part, DockedVesselInfo vesselInfo)
+		{
+			yield return new WaitForEndOfFrame();
+
+			if(vesselInfo != null)
+				part.Undock(vesselInfo);
+			else
+				part.decouple();
 		}
 
 		public static void DockVessels(IDockable part, IDockable targetPart)
@@ -782,10 +807,8 @@ namespace DockingFunctions
 
 					DockingEvents.onVesselUndocking.Fire(part, targetPart);
 
-					if((dockInfo != null) && (dockInfo.vesselInfo != null))
-						part.GetPart().Undock(dockInfo.vesselInfo);
-					else
-						part.GetPart().decouple();
+					part.GetPart().StartCoroutine(ExecuteUndockVessels(part.GetPart(), (dockInfo == null) ? null : dockInfo.vesselInfo));
+
 
 					part.SetDockInfo(null);
 					targetPart.SetDockInfo(null);
