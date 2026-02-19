@@ -52,11 +52,17 @@ namespace DockingFunctions
 
 		/*
 		 * Description:
-		 *     Registers a previously registered connection again (e.g. after a load).
+		 *     Inserts a connection manually (e.g. a previously registered connection after a load).
 		*/
-		public static void OnLoad(Vessel vessel, Part followedPart, Vector3 relativePosition, Quaternion relativeRotation)
+		public static void Insert(Vessel vessel, Part followedPart, Vector3 relativePosition, Quaternion relativeRotation)
 		{
-			Instance.registeredVessels.Add(
+			int i = 0;
+			
+			while((i < Instance.registeredVessels.Count)
+			   && (Instance.registeredVessels[i].followedPart.vessel != vessel))
+				++i;
+
+			Instance.registeredVessels.Insert(i,
 				new RegisteredVessel { vessel = vessel, followedPart = followedPart, relativePosition = relativePosition, relativeRotation = relativeRotation });
 		}
 
@@ -84,7 +90,7 @@ namespace DockingFunctions
 				relativeRotation = Quaternion.Inverse(followedPart.transform.rotation) * part.vessel.transform.rotation;
 			}
 
-			OnLoad(part.vessel, followedPart, relativePosition, relativeRotation);
+			Insert(part.vessel, followedPart, relativePosition, relativeRotation);
 		}
 
 		/*
