@@ -11,11 +11,18 @@ namespace DockingFunctions
 
 		protected static VesselPositionManager Instance = null;
 
-		protected struct RegisteredVessel
+		protected static int idCounter = 0;
+
+		protected class RegisteredVessel
 		{
-			public Vessel vessel;
+			public int id;
+
+			public Part part;
 			public Part followedPart;
 
+			public Vessel vessel;
+
+			public Transform reference;
 			public Vector3 relativePosition;
 			public Quaternion relativeRotation;
 		};
@@ -32,7 +39,7 @@ namespace DockingFunctions
 		{
 			for(int i = 0; i < Instance.registeredVessels.Count; i++)
 			{
-				if(Instance.registeredVessels[i].vessel == vessel)
+				if(Instance.registeredVessels[i].part.vessel == vessel)
 					return true;
 			}
 
@@ -50,20 +57,13 @@ namespace DockingFunctions
 			return false;
 		}
 
-		/*
-		 * Description:
-		 *     Inserts a connection manually (e.g. a previously registered connection after a load).
-		*/
-		public static void Insert(Vessel vessel, Part followedPart, Vector3 relativePosition, Quaternion relativeRotation)
+		protected static void Calculate(RegisteredVessel r, Transform reference)
 		{
-			int i = 0;
-			
-			while((i < Instance.registeredVessels.Count)
-			   && (Instance.registeredVessels[i].followedPart.vessel != vessel))
-				++i;
+			r.vessel = r.part.vessel;
+			r.reference = reference;
 
-			Instance.registeredVessels.Insert(i,
-				new RegisteredVessel { vessel = vessel, followedPart = followedPart, relativePosition = relativePosition, relativeRotation = relativeRotation });
+			r.relativePosition = Quaternion.Inverse(r.reference.rotation) * (r.vessel.transform.position - r.reference.position);
+			r.relativeRotation = Quaternion.Inverse(r.reference.rotation) * r.vessel.transform.rotation;
 		}
 
 		/*
@@ -74,34 +74,69 @@ namespace DockingFunctions
 		 * Remarks:
 		 *     It is recommended that followedPart.vessel is dominant over part.vessel.
 		*/
-		public static void Register(Part part, Part followedPart, bool usePristineCoords, out Vector3 relativePosition, out Quaternion relativeRotation)
+		public static int Register(Part part, Part followedPart)
 		{
-			if(usePristineCoords)
-			{
-				Quaternion rootRotation = part.transform.rotation * Quaternion.Inverse(part.orgRot);
-				Vector3 rootPosition = part.transform.position - rootRotation * part.orgPos;
+			bool bSwapped = false;
 
-				relativePosition = Quaternion.Inverse(followedPart.transform.rotation) * (rootPosition - followedPart.transform.position);
-				relativeRotation = Quaternion.Inverse(followedPart.transform.rotation) * rootRotation;
-			}
-			else
+			int i = 0;
+
+			while(i < Instance.registeredVessels.Count)
 			{
-				relativePosition = Quaternion.Inverse(followedPart.transform.rotation) * (part.vessel.transform.position - followedPart.transform.position);
-				relativeRotation = Quaternion.Inverse(followedPart.transform.rotation) * part.vessel.transform.rotation;
+				if(Instance.registeredVessels[i].part.vessel == part.vessel)
+				{
+					if(bSwapped)
+						return 0;
+				
+					Part temp = part; part = followedPart; followedPart = temp;
+					bSwapped = true;
+					i = 0;
+				}
+				else
+					++i;
 			}
 
-			Insert(part.vessel, followedPart, relativePosition, relativeRotation);
+			int id = ++idCounter;
+
+			Instance.registeredVessels.Add(new RegisteredVessel { id = id, part = part, followedPart = followedPart });
+
+			List<RegisteredVessel> rv = new List<RegisteredVessel>(Instance.registeredVessels);
+			Dictionary<Vessel, Vessel> tgt = new Dictionary<Vessel, Vessel>();
+
+			while(rv.Count > 0)
+			{
+				for(int j = 0; j < rv.Count; j++)
+				{
+					int k = 0;
+					while((k < rv.Count) && (rv[j].followedPart.vessel != rv[k].part.vessel))
+						++k;
+
+					if(k >= rv.Count)
+					{
+						Vessel v;
+
+						if(!tgt.TryGetValue(rv[j].followedPart.vessel, out v))
+							v = rv[j].followedPart.vessel;
+
+						Calculate(rv[j], v.transform);
+						tgt.Add(rv[j].part.vessel, v);
+
+						rv.RemoveAt(j--);
+					}
+				}
+			}
+
+			return id;
 		}
 
 		/*
 		 * Description:
 		 *     Unregisters a connection between two parts.
 		*/
-		public static void Unregister(Vessel vessel)
+		public static void Unregister(int id)
 		{
 			for(int i = 0; i < Instance.registeredVessels.Count; i++)
 			{
-				if(Instance.registeredVessels[i].vessel == vessel)
+				if(Instance.registeredVessels[i].id == id)
 					Instance.registeredVessels.RemoveAt(i--);
 			}
 		}
@@ -116,13 +151,13 @@ namespace DockingFunctions
 				{
 					if(r.vessel.packed)
 					{
-						r.vessel.SetRotation(r.followedPart.transform.rotation * r.relativeRotation, true);
-						r.vessel.SetPosition(r.followedPart.transform.position + r.followedPart.transform.rotation * r.relativePosition, false);
+						r.vessel.SetRotation(r.reference.rotation * r.relativeRotation, true);
+						r.vessel.SetPosition(r.reference.position + r.reference.rotation * r.relativePosition, false);
 					}
 				}
 				catch(Exception)
 				{
-					if((r.vessel == null) || (r.followedPart == null))
+					if((r.part == null) || (r.followedPart == null) || (r.vessel == null) || (r.reference == null))
 						registeredVessels.RemoveAt(i--);
 				}
 			}
