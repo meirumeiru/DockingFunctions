@@ -62,28 +62,6 @@ namespace DockingFunctions
 		//////////////////////////////
 		// Camera Switch
 
-		private static Part targetPart;
-		private static Vector3 position1;
-		private static Vector3 position2;
-
-		public static void SaveCameraPosition(Part part)
-		{
-			targetPart = (FlightCamera.fetch.targetMode == FlightCamera.TargetMode.Part) ? FlightCamera.fetch.partTarget : null;
-
-			position1 = part.transform.InverseTransformPoint(FlightCamera.fetch.GetPivot().position);
-			position2 = part.transform.InverseTransformPoint(FlightCamera.fetch.GetCameraTransform().position);
-		}
-
-		public static void RestoreCameraPosition(Part part)
-		{
-			if(targetPart)
-				FlightCamera.fetch.SetTargetPart(targetPart);
-
-			FlightCamera.fetch.GetPivot().position = part.transform.TransformPoint(position1);
-			FlightCamera.fetch.SetCamCoordsFromPosition(part.transform.TransformPoint(position2));
-			FlightCamera.fetch.GetCameraTransform().position = part.transform.TransformPoint(position2);
-		}
-
 		public static void DisableCameraSwitch()
 		{
 			Type FlightCameraType = null;
@@ -566,14 +544,42 @@ namespace DockingFunctions
 
 		// undocks a vessel
 
-		private static IEnumerator ExecuteUndockVessels(Part part, DockedVesselInfo vesselInfo)
+		private static IEnumerator ExecuteUndockVessels(IDockable part, IDockable targetPart, IDockable vesselPart, DockedVesselInfo vesselInfo)
 		{
+			bool SAS = part.GetPart().vessel.ActionGroups[KSPActionGroup.SAS];
+			bool RCS = part.GetPart().vessel.ActionGroups[KSPActionGroup.RCS];
+
+			DockingEvents.onVesselUndocking.Fire(part, targetPart);
+
 			yield return new WaitForEndOfFrame();
 
 			if(vesselInfo != null)
-				part.Undock(vesselInfo);
+				part.GetPart().Undock(vesselInfo);
 			else
-				part.decouple();
+				part.GetPart().decouple();
+
+			part.SetDockInfo(null);
+			targetPart.SetDockInfo(null);
+
+			// copy sas and rcs state
+			part.GetPart().vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, SAS);
+			part.GetPart().vessel.ActionGroups.SetGroup(KSPActionGroup.RCS, RCS);
+
+			targetPart.GetPart().vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, SAS);
+			targetPart.GetPart().vessel.ActionGroups.SetGroup(KSPActionGroup.RCS, RCS);
+
+			DockingEvents.onVesselUndocked.Fire(part, targetPart);
+
+		//	part.fuelLookupTargets.Remove(targetPart);
+		//	targetPart.fuelLookupTargets.Remove(part);
+		//	GameEvents.onPartFuelLookupStateChange.Fire(new GameEvents.HostedFromToAction<bool, Part>(true, part, targetPart));
+
+			// set focus to correct vessel
+			if(FlightGlobals.ActiveVessel != vesselPart.GetPart().vessel)
+			{
+				FlightGlobals.ForceSetActiveVessel(vesselPart.GetPart().vessel);
+				FlightInputHandler.SetNeutralControls();
+			}
 		}
 
 		public static void DockVessels(IDockable part, IDockable targetPart)
@@ -730,36 +736,7 @@ namespace DockingFunctions
 				}
 				else
 				{
-					bool SAS = part.GetPart().vessel.ActionGroups[KSPActionGroup.SAS];
-					bool RCS = part.GetPart().vessel.ActionGroups[KSPActionGroup.RCS];
-
-					DockingEvents.onVesselUndocking.Fire(part, targetPart);
-
-					part.GetPart().StartCoroutine(ExecuteUndockVessels(part.GetPart(), (dockInfo == null) ? null : dockInfo.vesselInfo));
-
-
-					part.SetDockInfo(null);
-					targetPart.SetDockInfo(null);
-
-					// copy sas and rcs state
-					part.GetPart().vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, SAS);
-					part.GetPart().vessel.ActionGroups.SetGroup(KSPActionGroup.RCS, RCS);
-
-					targetPart.GetPart().vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, SAS);
-					targetPart.GetPart().vessel.ActionGroups.SetGroup(KSPActionGroup.RCS, RCS);
-
-					DockingEvents.onVesselUndocked.Fire(part, targetPart);
-
-				//	part.fuelLookupTargets.Remove(targetPart);
-				//	targetPart.fuelLookupTargets.Remove(part);
-				//	GameEvents.onPartFuelLookupStateChange.Fire(new GameEvents.HostedFromToAction<bool, Part>(true, part, targetPart));
-				}
-
-				// set focus to correct vessel
-				if(FlightGlobals.ActiveVessel != vesselPart.GetPart().vessel)
-				{
-					FlightGlobals.ForceSetActiveVessel(vesselPart.GetPart().vessel);
-					FlightInputHandler.SetNeutralControls();
+					part.GetPart().StartCoroutine(ExecuteUndockVessels(part, targetPart, vesselPart, (dockInfo == null) ? null : dockInfo.vesselInfo));
 				}
 			}
 
