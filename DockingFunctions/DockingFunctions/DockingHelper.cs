@@ -746,21 +746,11 @@ namespace DockingFunctions
 		// call this function to rebuild the docking state information after loading
 		public static void OnLoad(IDockable part, DockedVesselInfo vesselInfo, IDockable targetPart, DockedVesselInfo targetVesselInfo)
 		{
-			// checks (just to be sure)
-			if(part.GetPart().parent != targetPart.GetPart()) // -> sameVesselJoint
-			{
-				if(targetPart.GetPart().parent == part.GetPart())
-				{
-					Logger.Log("wrong configuration detected", Logger.Level.Error);
-					return; // this should not happen
-				}
+			if(part.GetDockInfo() != null)
+				return; // already built (from OnLoad of the targetPort)
 
-				if(part.GetDockInfo() != null)
-				{
-					Logger.Log("sameVesselJoint already built", Logger.Level.Error);
-					return; // this should not happen
-				}
-			}
+			if(targetPart.GetPart().parent == part.GetPart())
+			{ IDockable temp = part; part = targetPart; targetPart = temp; }
 
 			DockInfo dockInfo = new DockInfo { part = part, targetPart = targetPart, vesselInfo = vesselInfo, targetVesselInfo = targetVesselInfo,
 				isSameVesselJoint = (part.GetPart().parent != targetPart.GetPart()), sameVesselJoint = null };
