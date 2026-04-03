@@ -722,6 +722,19 @@ namespace DockingFunctions
 						}
 					}
 
+					AttachNode attachNode2 = part.GetPart().parent.FindAttachNodeByPart(part.GetPart());
+					if(attachNode2 != null)
+					{
+						int i = 0;
+						for(int count = part.GetPart().parent.Modules.Count; i < count; i++)
+						{
+							if (part.GetPart().parent.Modules[i] is IActivateOnDecouple activateOnDecouple)
+								activateOnDecouple.DecoupleAction(attachNode2.id, weDecouple: false);
+						}
+
+						attachNode2.attachedPart = null;
+					}
+
 					if(targetDockInfo.sameVesselJoint)
 						UnityEngine.Object.Destroy(targetDockInfo.sameVesselJoint);
 
@@ -739,8 +752,6 @@ namespace DockingFunctions
 					part.GetPart().StartCoroutine(ExecuteUndockVessels(part, targetPart, vesselPart, (dockInfo == null) ? null : dockInfo.vesselInfo));
 				}
 			}
-
-			// option -> set other camera ?
 		}
 
 		// call this function to rebuild the docking state information after loading
