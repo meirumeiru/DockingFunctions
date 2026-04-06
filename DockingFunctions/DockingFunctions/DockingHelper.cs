@@ -577,6 +577,8 @@ namespace DockingFunctions
 			// set focus to correct vessel
 			if(FlightGlobals.ActiveVessel != vesselPart.GetPart().vessel)
 			{
+				yield return null;
+
 				FlightGlobals.ForceSetActiveVessel(vesselPart.GetPart().vessel);
 				FlightInputHandler.SetNeutralControls();
 			}
