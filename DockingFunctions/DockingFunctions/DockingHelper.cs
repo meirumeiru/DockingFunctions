@@ -60,57 +60,6 @@ namespace DockingFunctions
 		}
 
 		//////////////////////////////
-		// Camera Switch
-
-		public static void DisableCameraSwitch()
-		{
-			Type FlightCameraType = null;
-
-		//	AssemblyLoader.loadedAssemblies.TypeOperation (t => {
-		//		if(t.FullName == "FlightCamera") { FlightCameraType = t; } });
-
-			FlightCameraType = typeof(FlightCamera);
-
-			System.Reflection.MethodInfo OnVesselChange;
-			OnVesselChange = FlightCameraType.GetMethod("OnVesselChange", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-			Delegate onEvent = Delegate.CreateDelegate(typeof(EventData<Vessel>.OnEvent), FlightCamera.fetch, OnVesselChange);
-
-			GameEvents.onVesselChange.Remove((EventData<Vessel>.OnEvent)onEvent);
-		}
-
-		public static void EnableCameraSwitch()
-		{
-			Type FlightCameraType = null;
-
-		//	AssemblyLoader.loadedAssemblies.TypeOperation (t => {
-		//		if(t.FullName == "FlightCamera") { FlightCameraType = t; } });
-
-			FlightCameraType = typeof(FlightCamera);
-
-			System.Reflection.MethodInfo OnVesselChange;
-			OnVesselChange = FlightCameraType.GetMethod("OnVesselChange", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-			Delegate onEvent = Delegate.CreateDelegate(typeof(EventData<Vessel>.OnEvent), FlightCamera.fetch, OnVesselChange);
-
-			GameEvents.onVesselChange.Add((EventData<Vessel>.OnEvent)onEvent);
-		}
-
-		public static void SuspendCameraSwitch(int frames)
-		{
-			DisableCameraSwitch();
-			FlightDriver.fetch.StartCoroutine(WaitAndEnableCameraSwitch(frames));
-		}
-
-		public static IEnumerator WaitAndEnableCameraSwitch(int frames)
-		{
-			while(frames-- > 0)
-				yield return new WaitForFixedUpdate();
-
-			EnableCameraSwitch();
-		}
-
-		//////////////////////////////
 		// position / rotation
 
 		public struct posInfoPart
