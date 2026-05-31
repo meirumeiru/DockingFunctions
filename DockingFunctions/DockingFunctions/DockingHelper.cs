@@ -207,12 +207,12 @@ namespace DockingFunctions
 			// relative rotation targetNodeTransform -> nodeTransform
 			Quaternion nodeToNode =
 				Quaternion.AngleAxis(180f, targetDockingOrientation)
-				* Quaternion.AngleAxis(Vector3.SignedAngle(targetDockingOrientation, dockingOrientation, Vector3.forward), Vector3.forward);
+				* Quaternion.AngleAxis(Vector3.SignedAngle(targetDockingOrientation, Quaternion.AngleAxis(180f, targetDockingOrientation) * dockingOrientation, Vector3.forward), Vector3.forward);
 
 			// find docking angle (from current values, not org-values) -> used for decision which docking angle ("snap angle") to choose
 			float dockingAngle =
 			Vector3.SignedAngle(targetNodeTransform.rotation * targetDockingOrientation, nodeTransform.rotation * dockingOrientation,
-				nodeTransform.forward);
+				targetNodeTransform.forward);
 
 			// -> at correct docking with 0 degrees, the DockingOrientation of both ports point into the same direction
 
