@@ -220,7 +220,7 @@ namespace DockingFunctions
 
 			dockingAngle = Mathf.Round(dockingAngle / snapAngle) * snapAngle;
 
-			nodeToNode = nodeToNode * Quaternion.AngleAxis(dockingAngle, Vector3.forward);
+			nodeToNode = nodeToNode * Quaternion.AngleAxis(-dockingAngle, Vector3.forward);
 
 			// relative rotation nodeTransform -> part
 			Quaternion part_relRot =
